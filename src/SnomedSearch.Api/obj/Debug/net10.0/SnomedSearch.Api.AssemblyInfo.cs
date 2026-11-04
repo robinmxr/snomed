@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SnomedSearch.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2d66776318f90ff1dcda22954086a81897760b2f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8ab8f292c887e99f86a3acbbf6a06a258cf1e74a")]
 [assembly: System.Reflection.AssemblyProductAttribute("SnomedSearch.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SnomedSearch.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
