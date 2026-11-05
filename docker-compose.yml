@@ -1,0 +1,22 @@
+# Local Postgres with pgvector. Reads SNOMED_DB_* from .env (copy .env.example first).
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: ${SNOMED_DB_NAME:?set SNOMED_DB_NAME in .env}
+      POSTGRES_USER: ${SNOMED_DB_USER:?set SNOMED_DB_USER in .env}
+      POSTGRES_PASSWORD: ${SNOMED_DB_PASSWORD:?set SNOMED_DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${SNOMED_DB_PORT:?set SNOMED_DB_PORT in .env}:5432"
+    volumes:
+      - snomed-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    # Tuned for index builds on the full release; adjust to your machine.
+    command: ["postgres", "-c", "shared_buffers=1GB", "-c", "maintenance_work_mem=1GB", "-c", "max_wal_size=4GB"]
+
+volumes:
+  snomed-pgdata:

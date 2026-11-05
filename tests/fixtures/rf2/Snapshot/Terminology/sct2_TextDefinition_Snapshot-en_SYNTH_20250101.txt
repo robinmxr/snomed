@@ -1,0 +1,2 @@
+id	effectiveTime	active	moduleId	conceptId	languageCode	typeId	term	caseSignificanceId
+6000001	20250101	1	9990000001	9100001	en	900000000000550004	An invented condition used only in tests.	900000000000448009
