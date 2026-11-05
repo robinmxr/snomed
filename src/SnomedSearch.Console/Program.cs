@@ -5,8 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using dotenv.net;
 using SnomedSearch.Core.Entities;
 using SnomedSearch.Core.Interfaces;
+using SnomedSearch.Core.Models;
 using SnomedSearch.Infrastructure.Data;
-using SnomedSearch.Infrastructure.Services;
 
 namespace SnomedSearch.ConsoleApp
 {
@@ -25,14 +25,14 @@ namespace SnomedSearch.ConsoleApp
             ISnomedRepository repository = new SnomedRepository(dbContext);
 
             Console.WriteLine("========================================");
-            Console.WriteLine(" SNOMED CT Chief Complaint Search (.NET)");
+            Console.WriteLine(" SNOMED CT search (.NET)");
             Console.WriteLine("========================================");
             Console.WriteLine("Type 'exit' to quit.");
 
             while (true)
             {
                 Console.Write("\nEnter search query: ");
-                string query = Console.ReadLine();
+                string? query = Console.ReadLine();
 
                 if (string.IsNullOrWhiteSpace(query) || query.ToLower() == "exit")
                     break;
@@ -40,7 +40,8 @@ namespace SnomedSearch.ConsoleApp
                 Console.WriteLine($"Searching for '{query}'...");
                 try
                 {
-                    var results = await repository.SearchChiefComplaintsAsync(query);
+                    var response = await repository.SearchAsync(new ConceptSearchQuery(query, SearchMode.Lexical, null, 20, 0, null));
+                    var results = response.Items;
 
                     if (results.Count == 0)
                     {

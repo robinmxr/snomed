@@ -17,12 +17,12 @@ namespace SnomedSearch.Core.Entities
         public long DefinitionStatusId { get; set; }
 
         // Projections / Computed fields for Application usage
-        public string Fsn { get; set; } // Fully Specified Name
-        public string SemanticTag { get; set; }
-        public string PreferredTerm { get; set; }
+        public string? Fsn { get; set; } // Fully Specified Name
+        public string? SemanticTag { get; set; }
+        public string? PreferredTerm { get; set; }
         public List<string> Synonyms { get; set; } = new List<string>();
         public int ChildrenCount { get; set; }
-        public string Definition { get; set; }
+        public string? Definition { get; set; }
         public List<ConceptSummary> Parents { get; set; } = new List<ConceptSummary>();
     }
 
@@ -32,9 +32,13 @@ namespace SnomedSearch.Core.Entities
     public class ConceptSummary
     {
         public long ConceptId { get; set; }
-        public string PreferredTerm { get; set; }
-        public string SemanticTag { get; set; }
+        public string PreferredTerm { get; set; } = "";
+        public string SemanticTag { get; set; } = "";
         public int ChildrenCount { get; set; }
+
+        /// <summary>The description that matched the query. Null for hierarchy results.</summary>
+        public string? MatchedTerm { get; set; }
+
         public bool HasChildren => ChildrenCount > 0;
     }
 }

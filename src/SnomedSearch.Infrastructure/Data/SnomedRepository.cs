@@ -1,189 +1,172 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using SnomedSearch.Core.Entities;
 using SnomedSearch.Core.Interfaces;
+using SnomedSearch.Core.Models;
 
 namespace SnomedSearch.Infrastructure.Data
 {
     public class SnomedRepository : ISnomedRepository
     {
-        private readonly SnomedDbContext _dbContext;
+        // Fixed SNOMED CT metadata identifiers.
+        private const long IsATypeId = 116680003;
+        private const long SynonymTypeId = 900000000000013009;
+
+        private readonly SnomedDbContext _db;
         private readonly LexicalSearch _search;
 
-        public SnomedRepository(SnomedDbContext dbContext)
+        public SnomedRepository(SnomedDbContext db, LexicalSearchOptions? options = null)
         {
-            _dbContext = dbContext;
-            _search = new LexicalSearch(dbContext);
+            _db = db;
+            _search = new LexicalSearch(db, options);
         }
 
-        public async Task<List<ConceptSummary>> SearchChiefComplaintsAsync(
-            string query,
-            int limit = 20,
-            List<string> semanticTags = null)
+        public async Task<ConceptSearchResponse> SearchAsync(ConceptSearchQuery query, CancellationToken ct = default)
         {
-            semanticTags ??= new List<string> { "finding" };
-            var result = await _search.SearchAsync(new LexicalSearchRequest(query, semanticTags, limit, 0));
-            return result.Items;
+            if (query.Mode != SearchMode.Lexical)
+            {
+                throw new NotSupportedException($"Search mode '{query.Mode}' is not available in this build.");
+            }
+
+            var result = await _search.SearchAsync(
+                new LexicalSearchRequest(query.Query, query.SemanticTags, query.Limit, query.Offset, query.Cursor), ct);
+
+            return new ConceptSearchResponse
+            {
+                Items = result.Items,
+                TotalCount = result.TotalCount,
+                NextCursor = result.NextCursor,
+                Mode = "lexical",
+                Fuzzy = result.Fuzzy
+            };
         }
 
-        public async Task<Concept> GetConceptDetailsAsync(long conceptId)
+        public Task<List<ConceptSummary>> SuggestAsync(
+            string prefix, IReadOnlyList<string>? semanticTags, int limit, CancellationToken ct = default) =>
+            _search.SuggestAsync(prefix, semanticTags, limit, ct);
+
+        public async Task<Concept?> GetConceptDetailsAsync(long conceptId, CancellationToken ct = default)
         {
-            var concept = await _dbContext.Concepts
+            var concept = await _db.Concepts
+                .AsNoTracking()
                 .Where(c => c.ConceptId == conceptId && c.Active)
-                .Select(c => new Concept
-                {
-                    ConceptId = c.ConceptId,
-                    Active = c.Active,
-                    // These will be filled below
-                })
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(ct);
+            if (concept is null) return null;
 
-            if (concept == null) return null;
-
-            var tagInfo = await _dbContext.SemanticTags
-                .FirstOrDefaultAsync(st => st.ConceptId == conceptId);
-            
+            var tagInfo = await _db.SemanticTags.AsNoTracking()
+                .FirstOrDefaultAsync(st => st.ConceptId == conceptId, ct);
             concept.Fsn = tagInfo?.FullySpecifiedName;
             concept.SemanticTag = tagInfo?.SemanticTag;
 
-            concept.Synonyms = await GetSynonymsAsync(conceptId);
-            concept.PreferredTerm = concept.Synonyms.FirstOrDefault() ?? concept.Fsn;
+            concept.Synonyms = await SynonymsQuery(conceptId).ToListAsync(ct);
+            // Same rule the search table uses: shortest active synonym, then alphabetical.
+            concept.PreferredTerm = concept.Synonyms
+                .OrderBy(t => t.Length).ThenBy(t => t, StringComparer.Ordinal)
+                .FirstOrDefault() ?? concept.Fsn;
 
-            concept.Definition = await _dbContext.TextDefinitions
+            concept.Definition = await _db.TextDefinitions.AsNoTracking()
                 .Where(td => td.ConceptId == conceptId && td.Active)
+                .OrderBy(td => td.DefinitionId)
                 .Select(td => td.Term)
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(ct);
 
-            var parentsResult = await GetParentsAsync(conceptId);
-            concept.Parents = parentsResult.Items;
+            concept.Parents = (await GetParentsAsync(conceptId, ct))?.Items ?? new List<ConceptSummary>();
 
-            concept.ChildrenCount = (int)await _dbContext.Relationships
-                .CountAsync(r => r.DestinationId == conceptId && r.TypeId == 116680003 && r.Active);
+            concept.ChildrenCount = await _db.Relationships
+                .CountAsync(r => r.DestinationId == conceptId && r.TypeId == IsATypeId && r.Active, ct);
 
             return concept;
         }
 
-        public async Task<HierarchyResponse> GetChildrenAsync(long conceptId, int limit = 50)
+        public async Task<HierarchyResponse?> GetChildrenAsync(long conceptId, int limit = 50, CancellationToken ct = default)
         {
-            var parentTerm = await _dbContext.Descriptions
-                .Where(d => d.ConceptId == conceptId && d.TypeId == 900000000000013009 && d.Active)
-                .Select(d => d.Term)
-                .FirstOrDefaultAsync() ?? conceptId.ToString();
+            if (!await ActiveConceptExists(conceptId, ct)) return null;
 
-            var items = await _dbContext.Relationships
-                .Where(r => r.DestinationId == conceptId && r.TypeId == 116680003 && r.Active)
-                .Join(_dbContext.Concepts.Where(c => c.Active),
-                    r => r.SourceId,
-                    c => c.ConceptId,
-                    (r, c) => c)
-                .Select(c => new ConceptSummary
-                {
-                    ConceptId = c.ConceptId,
-                    PreferredTerm = _dbContext.Descriptions
-                        .Where(d => d.ConceptId == c.ConceptId && d.TypeId == 900000000000013009 && d.Active)
-                        .Select(d => d.Term)
-                        .FirstOrDefault(),
-                    SemanticTag = _dbContext.SemanticTags
-                        .Where(st => st.ConceptId == c.ConceptId)
-                        .Select(st => st.SemanticTag)
-                        .FirstOrDefault(),
-                    ChildrenCount = _dbContext.Relationships
-                        .Count(r2 => r2.DestinationId == c.ConceptId && r2.TypeId == 116680003 && r2.Active)
-                })
-                .OrderBy(i => i.PreferredTerm)
+            var items = await _db.Relationships.AsNoTracking()
+                .Where(r => r.DestinationId == conceptId && r.TypeId == IsATypeId && r.Active)
+                .Join(_db.Concepts.Where(c => c.Active), r => r.SourceId, c => c.ConceptId, (r, c) => c.ConceptId)
+                .Select(SummaryOf)
+                .OrderBy(i => i.PreferredTerm).ThenBy(i => i.ConceptId)
                 .Take(limit)
-                .ToListAsync();
+                .ToListAsync(ct);
 
-            return new HierarchyResponse { ConceptId = conceptId, PreferredTerm = parentTerm, Items = items };
+            return new HierarchyResponse { ConceptId = conceptId, PreferredTerm = await PreferredTermOf(conceptId, ct), Items = items };
         }
 
-        public async Task<HierarchyResponse> GetParentsAsync(long conceptId)
+        public async Task<HierarchyResponse?> GetParentsAsync(long conceptId, CancellationToken ct = default)
         {
-            var childTerm = await _dbContext.Descriptions
-                .Where(d => d.ConceptId == conceptId && d.TypeId == 900000000000013009 && d.Active)
-                .Select(d => d.Term)
-                .FirstOrDefaultAsync() ?? conceptId.ToString();
+            if (!await ActiveConceptExists(conceptId, ct)) return null;
 
-            var items = await _dbContext.Relationships
-                .Where(r => r.SourceId == conceptId && r.TypeId == 116680003 && r.Active)
-                .Join(_dbContext.Concepts.Where(c => c.Active),
-                    r => r.DestinationId,
-                    c => c.ConceptId,
-                    (r, c) => c)
-                .Select(c => new ConceptSummary
-                {
-                    ConceptId = c.ConceptId,
-                    PreferredTerm = _dbContext.Descriptions
-                        .Where(d => d.ConceptId == c.ConceptId && d.TypeId == 900000000000013009 && d.Active)
-                        .Select(d => d.Term)
-                        .FirstOrDefault(),
-                    SemanticTag = _dbContext.SemanticTags
-                        .Where(st => st.ConceptId == c.ConceptId)
-                        .Select(st => st.SemanticTag)
-                        .FirstOrDefault(),
-                    ChildrenCount = _dbContext.Relationships
-                        .Count(r2 => r2.DestinationId == c.ConceptId && r2.TypeId == 116680003 && r2.Active)
-                })
-                .OrderBy(i => i.PreferredTerm)
-                .ToListAsync();
+            var items = await _db.Relationships.AsNoTracking()
+                .Where(r => r.SourceId == conceptId && r.TypeId == IsATypeId && r.Active)
+                .Join(_db.Concepts.Where(c => c.Active), r => r.DestinationId, c => c.ConceptId, (r, c) => c.ConceptId)
+                .Select(SummaryOf)
+                .OrderBy(i => i.PreferredTerm).ThenBy(i => i.ConceptId)
+                .ToListAsync(ct);
 
-            return new HierarchyResponse { ConceptId = conceptId, PreferredTerm = childTerm, Items = items };
+            return new HierarchyResponse { ConceptId = conceptId, PreferredTerm = await PreferredTermOf(conceptId, ct), Items = items };
         }
 
-        public async Task<List<string>> GetSynonymsAsync(long conceptId)
+        public async Task<List<string>?> GetSynonymsAsync(long conceptId, CancellationToken ct = default)
         {
-            return await _dbContext.Descriptions
-                .Where(d => d.ConceptId == conceptId && d.Active && d.TypeId == 900000000000013009)
-                .Select(d => d.Term)
-                .Distinct()
-                .OrderBy(t => t)
-                .ToListAsync();
+            if (!await ActiveConceptExists(conceptId, ct)) return null;
+            return await SynonymsQuery(conceptId).ToListAsync(ct);
         }
 
-        public async Task<Dictionary<string, int>> GetSemanticTagStatsAsync()
+        public async Task<Dictionary<string, int>> GetSemanticTagStatsAsync(CancellationToken ct = default)
         {
-            var stats = await _dbContext.Database.SqlQueryRaw<TagCount>(@"
+            var stats = await _db.Database.SqlQueryRaw<TagCount>(@"
                 SELECT st.semantic_tag AS ""Tag"", count(*) AS ""Count""
                 FROM semantic_tag st
                 JOIN search_config sc ON sc.semantic_tag = st.semantic_tag
                 GROUP BY st.semantic_tag
-                ORDER BY count(*) DESC, st.semantic_tag").ToListAsync();
+                ORDER BY count(*) DESC, st.semantic_tag").ToListAsync(ct);
 
             return stats.ToDictionary(x => x.Tag, x => (int)x.Count);
         }
 
-        public async Task<SnomedSearch.Core.Common.PagedResult<ChiefComplaint>> SearchChiefComplaintsPagedAsync(
-            string searchTerm,
-            int page,
-            int pageSize,
-            System.Threading.CancellationToken cancellationToken = default)
+        private Task<bool> ActiveConceptExists(long conceptId, CancellationToken ct) =>
+            _db.Concepts.AnyAsync(c => c.ConceptId == conceptId && c.Active, ct);
+
+        private IQueryable<string> SynonymsQuery(long conceptId) =>
+            _db.Descriptions.AsNoTracking()
+                .Where(d => d.ConceptId == conceptId && d.Active && d.TypeId == SynonymTypeId)
+                .Select(d => d.Term)
+                .Distinct()
+                .OrderBy(t => t);
+
+        private async Task<string> PreferredTermOf(long conceptId, CancellationToken ct) =>
+            await _db.Descriptions.AsNoTracking()
+                .Where(d => d.ConceptId == conceptId && d.TypeId == SynonymTypeId && d.Active)
+                .OrderBy(d => d.Term.Length).ThenBy(d => d.Term)
+                .Select(d => d.Term)
+                .FirstOrDefaultAsync(ct)
+            ?? conceptId.ToString();
+
+        /// <summary>
+        /// Summary of a concept, built inside the query. The preferred term follows the same rule as the
+        /// search table (shortest active synonym, then alphabetical), so it is deterministic.
+        /// </summary>
+        private Expression<Func<long, ConceptSummary>> SummaryOf => id => new ConceptSummary
         {
-            page = Math.Max(page, 1);
-            var result = await _search.SearchAsync(
-                new LexicalSearchRequest(searchTerm, new[] { "finding" }, pageSize, (page - 1) * pageSize),
-                cancellationToken);
-
-            var items = result.Items
-                .Select(i => new ChiefComplaint
-                {
-                    ConceptId = i.ConceptId,
-                    PreferredTerm = i.PreferredTerm,
-                    SemanticTag = i.SemanticTag
-                })
-                .ToList();
-
-            return new SnomedSearch.Core.Common.PagedResult<ChiefComplaint>(items, result.TotalCount, page, pageSize);
-        }
+            ConceptId = id,
+            PreferredTerm = _db.Descriptions
+                .Where(d => d.ConceptId == id && d.TypeId == SynonymTypeId && d.Active)
+                .OrderBy(d => d.Term.Length).ThenBy(d => d.Term)
+                .Select(d => d.Term)
+                .FirstOrDefault() ?? "",
+            SemanticTag = _db.SemanticTags
+                .Where(st => st.ConceptId == id)
+                .Select(st => st.SemanticTag)
+                .FirstOrDefault() ?? "",
+            ChildrenCount = _db.Relationships
+                .Count(r2 => r2.DestinationId == id && r2.TypeId == IsATypeId && r2.Active)
+        };
 
         private sealed class TagCount
         {
             public string Tag { get; set; } = "";
             public long Count { get; set; }
-        }
-
-        public void Dispose()
-        {
-            _dbContext?.Dispose();
         }
     }
 }

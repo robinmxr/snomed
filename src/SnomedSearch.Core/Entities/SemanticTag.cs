@@ -7,7 +7,7 @@ namespace SnomedSearch.Core.Entities
     public class SemanticTagInfo
     {
         public long ConceptId { get; set; }
-        public string FullySpecifiedName { get; set; }
-        public string SemanticTag { get; set; }
+        public string FullySpecifiedName { get; set; } = "";
+        public string SemanticTag { get; set; } = "";
     }
 }
