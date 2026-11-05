@@ -5,7 +5,7 @@ namespace SnomedSearch.Core.Interfaces
 {
     public interface ISnomedRepository
     {
-        /// <summary>Search concepts. Only lexical mode is implemented here; other modes throw NotSupportedException.</summary>
+        /// <summary>Search concepts. Semantic and hybrid modes throw NotSupportedException when no embedding model is configured.</summary>
         Task<ConceptSearchResponse> SearchAsync(ConceptSearchQuery query, CancellationToken ct = default);
 
         /// <summary>Prefix suggestions tuned for typing: no total count, no typo fallback, small limits.</summary>

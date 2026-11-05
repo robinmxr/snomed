@@ -21,6 +21,9 @@ public sealed class DatabaseFixture : IAsyncLifetime
     private string? _databaseName;
 
     public WebApplicationFactory<Program> Factory { get; private set; } = null!;
+
+    /// <summary>Connection string for the test database, with the snomed schema on the search path.</summary>
+    public string ConnectionString { get; private set; } = "";
     public HttpClient Client { get; private set; } = null!;
 
     public async Task InitializeAsync()
@@ -51,6 +54,8 @@ public sealed class DatabaseFixture : IAsyncLifetime
             await conn.OpenAsync();
             await ApplyDatabaseAsync(conn);
         }
+
+        ConnectionString = new NpgsqlConnectionStringBuilder(connection) { SearchPath = Schema + ",public" }.ConnectionString;
 
         // The app reads its settings from the environment, so point it at the test database.
         var b = new NpgsqlConnectionStringBuilder(connection);
@@ -109,6 +114,10 @@ public sealed class DatabaseFixture : IAsyncLifetime
 
         foreach (var f in new[] { "load/02_cast.sql", "sql/004_populate.sql" })
             await RunAsync(conn, ReadSql(f));
+
+        // Later migrations (1xx), as db/migrate.sh runs them.
+        foreach (var f in Directory.GetFiles(Path.Combine(BaseDir, "db", "sql"), "1*.sql").OrderBy(x => x))
+            await RunAsync(conn, ReadSql(Path.Combine("sql", Path.GetFileName(f))));
     }
 
     private static string Find(string dir, string pattern) =>

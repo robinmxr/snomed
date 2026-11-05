@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using SnomedSearch.Core.Interfaces;
 using SnomedSearch.Infrastructure.Data;
+using SnomedSearch.Infrastructure.Embeddings;
 using dotenv.net;
 using System;
 
-DotEnv.Load();
+// Values already in the environment win over the .env file.
+DotEnv.Load(new DotEnvOptions(ignoreExceptions: true, overwriteExistingVars: false, probeForEnv: true, probeLevelsToSearch: 4));
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,8 +24,25 @@ string connString = dbSettings.ToConnectionString();
 builder.Services.AddDbContext<SnomedDbContext>(options =>
     options.UseNpgsql(connString));
 
-builder.Services.AddSingleton(builder.Configuration.GetSection("Search").Get<LexicalSearchOptions>() ?? new LexicalSearchOptions());
-builder.Services.AddScoped<ISnomedRepository, SnomedRepository>();
+var lexicalOptions = builder.Configuration.GetSection("Search").Get<LexicalSearchOptions>() ?? new LexicalSearchOptions();
+var embeddingOptions = builder.Configuration.GetSection("Embedding").Get<EmbeddingOptions>() ?? new EmbeddingOptions();
+var semanticOptions = builder.Configuration.GetSection("Semantic").Get<SemanticOptions>() ?? new SemanticOptions();
+var hybridOptions = builder.Configuration.GetSection("Hybrid").Get<HybridOptions>() ?? new HybridOptions();
+
+// Semantic and hybrid search are optional: without an embedding server they return 501.
+if (embeddingOptions.IsConfigured)
+{
+    builder.Services.AddSingleton(embeddingOptions);
+    builder.Services.AddSingleton(new QueryEmbeddingCache(semanticOptions.QueryCacheSize));
+    builder.Services.AddHttpClient<IEmbeddingClient, OllamaEmbeddingClient>((http, sp) =>
+        new OllamaEmbeddingClient(http, embeddingOptions));
+    builder.Services.AddScoped(sp => new SemanticSearch(
+        sp.GetRequiredService<SnomedDbContext>(), sp.GetRequiredService<IEmbeddingClient>(),
+        embeddingOptions, semanticOptions, sp.GetRequiredService<QueryEmbeddingCache>()));
+}
+
+builder.Services.AddScoped<ISnomedRepository>(sp => new SnomedRepository(
+    sp.GetRequiredService<SnomedDbContext>(), lexicalOptions, sp.GetService<SemanticSearch>(), hybridOptions));
 
 var app = builder.Build();
 

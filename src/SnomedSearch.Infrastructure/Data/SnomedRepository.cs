@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SnomedSearch.Core.Entities;
 using SnomedSearch.Core.Interfaces;
 using SnomedSearch.Core.Models;
+using SnomedSearch.Infrastructure.Embeddings;
 
 namespace SnomedSearch.Infrastructure.Data
 {
@@ -14,30 +15,60 @@ namespace SnomedSearch.Infrastructure.Data
 
         private readonly SnomedDbContext _db;
         private readonly LexicalSearch _search;
+        private readonly SemanticSearch? _semantic;
+        private readonly HybridOptions _hybrid;
 
-        public SnomedRepository(SnomedDbContext db, LexicalSearchOptions? options = null)
+        public SnomedRepository(SnomedDbContext db, LexicalSearchOptions? options = null,
+            SemanticSearch? semantic = null, HybridOptions? hybrid = null)
         {
             _db = db;
             _search = new LexicalSearch(db, options);
+            _semantic = semantic;
+            _hybrid = hybrid ?? new HybridOptions();
         }
 
         public async Task<ConceptSearchResponse> SearchAsync(ConceptSearchQuery query, CancellationToken ct = default)
         {
-            if (query.Mode != SearchMode.Lexical)
+            if (query.Mode == SearchMode.Lexical)
             {
-                throw new NotSupportedException($"Search mode '{query.Mode}' is not available in this build.");
+                var lexical = await _search.SearchAsync(
+                    new LexicalSearchRequest(query.Query, query.SemanticTags, query.Limit, query.Offset, query.Cursor), ct);
+                return new ConceptSearchResponse
+                {
+                    Items = lexical.Items,
+                    TotalCount = lexical.TotalCount,
+                    NextCursor = lexical.NextCursor,
+                    Mode = "lexical",
+                    Fuzzy = lexical.Fuzzy
+                };
             }
 
-            var result = await _search.SearchAsync(
-                new LexicalSearchRequest(query.Query, query.SemanticTags, query.Limit, query.Offset, query.Cursor), ct);
+            if (_semantic is null)
+            {
+                throw new NotSupportedException(
+                    "Semantic search is not configured. Set Embedding__BaseUrl and Embedding__Model, then run the embed command.");
+            }
+            if (query.Cursor is not null || query.Offset > 0)
+            {
+                throw new InvalidSearchRequestException(
+                    "Paging is only available in lexical mode. Raise limit instead (up to 100).");
+            }
 
+            if (query.Mode == SearchMode.Semantic)
+            {
+                var items = await _semantic.SearchAsync(query.Query, query.SemanticTags, query.Limit, ct);
+                return new ConceptSearchResponse { Items = items, Mode = "semantic" };
+            }
+
+            // Hybrid: fuse the two ranked lists with reciprocal rank fusion.
+            var lex = await _search.SearchAsync(
+                new LexicalSearchRequest(query.Query, query.SemanticTags, _hybrid.LexicalCandidates, 0), ct);
+            var sem = await _semantic.SearchAsync(query.Query, query.SemanticTags, _hybrid.SemanticCandidates, ct);
             return new ConceptSearchResponse
             {
-                Items = result.Items,
-                TotalCount = result.TotalCount,
-                NextCursor = result.NextCursor,
-                Mode = "lexical",
-                Fuzzy = result.Fuzzy
+                Items = HybridFusion.Fuse(lex.Items, sem, _hybrid.RrfK, query.Limit),
+                Mode = "hybrid",
+                Fuzzy = lex.Fuzzy
             };
         }
 

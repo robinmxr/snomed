@@ -1,0 +1,4 @@
+# Install torch first with the CUDA build that matches your GPU (see README), then these.
+fastapi==0.115.6
+uvicorn==0.34.0
+transformers==4.47.1

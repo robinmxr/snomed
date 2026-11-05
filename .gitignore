@@ -21,3 +21,7 @@ appsettings.Local.json
 data/
 *.rf2
 SnomedCT_*/
+
+# Python
+__pycache__/
+.venv/
