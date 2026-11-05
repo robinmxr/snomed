@@ -1,0 +1,23 @@
+# .NET build output
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+*.log
+TestResults/
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+
+# macOS
+.DS_Store
+
+# Local data: SNOMED CT release files are licensed and must never be committed
+data/
+*.rf2
+SnomedCT_*/

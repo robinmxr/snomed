@@ -5,7 +5,7 @@ namespace SnomedSearch.Core.Entities
 {
     /// <summary>
     /// Represents a SNOMED CT Concept.
-    /// Maps to 'snomed.concept' table and includes projections from views.
+    /// Maps to 'concept' table and includes projections from views.
     /// </summary>
     public class Concept
     {

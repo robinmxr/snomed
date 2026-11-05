@@ -14,14 +14,9 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Configure SNOMED Repository
-string host = Environment.GetEnvironmentVariable("SNOMED_DB_HOST") ?? "localhost";
-string port = Environment.GetEnvironmentVariable("SNOMED_DB_PORT") ?? "5433";
-string db = Environment.GetEnvironmentVariable("SNOMED_DB_NAME") ?? "niramoy";
-string user = Environment.GetEnvironmentVariable("SNOMED_DB_USER") ?? "niramoy";
-string pass = Environment.GetEnvironmentVariable("SNOMED_DB_PASSWORD") ?? "niramoy";
-
-string connString = $"Host={host};Port={port};Database={db};Username={user};Password={pass};";
+// Configure SNOMED Repository (fails at startup if required settings are missing)
+var dbSettings = DatabaseSettings.FromEnvironment();
+string connString = dbSettings.ToConnectionString();
 
 builder.Services.AddDbContext<SnomedDbContext>(options =>
     options.UseNpgsql(connString));

@@ -4,7 +4,7 @@ namespace SnomedSearch.Core.Entities
 {
     /// <summary>
     /// Represents a SNOMED CT Text Definition.
-    /// Maps to 'snomed.text_definition' table.
+    /// Maps to 'text_definition' table.
     /// </summary>
     public class TextDefinition
     {

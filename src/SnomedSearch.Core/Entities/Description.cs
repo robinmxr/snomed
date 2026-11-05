@@ -4,7 +4,7 @@ namespace SnomedSearch.Core.Entities
 {
     /// <summary>
     /// Represents a SNOMED CT Description.
-    /// Maps to 'snomed.description' table.
+    /// Maps to 'description' table.
     /// </summary>
     public class Description
     {

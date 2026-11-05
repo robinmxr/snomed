@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -16,13 +16,7 @@ namespace SnomedSearch.ConsoleApp
         {
             DotEnv.Load();
             
-            string host = Environment.GetEnvironmentVariable("SNOMED_DB_HOST") ?? "localhost";
-            string port = Environment.GetEnvironmentVariable("SNOMED_DB_PORT") ?? "5433";
-            string db = Environment.GetEnvironmentVariable("SNOMED_DB_NAME") ?? "niramoy";
-            string user = Environment.GetEnvironmentVariable("SNOMED_DB_USER") ?? "niramoy";
-            string pass = Environment.GetEnvironmentVariable("SNOMED_DB_PASSWORD") ?? "niramoy";
-
-            string connString = $"Host={host};Port={port};Database={db};Username={user};Password={pass};";
+            string connString = DatabaseSettings.FromEnvironment().ToConnectionString();
 
             var optionsBuilder = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<SnomedDbContext>();
             optionsBuilder.UseNpgsql(connString);

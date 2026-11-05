@@ -4,7 +4,7 @@ namespace SnomedSearch.Core.Entities
 {
     /// <summary>
     /// Represents a SNOMED CT Relationship.
-    /// Maps to 'snomed.relationship' table.
+    /// Maps to 'relationship' table.
     /// </summary>
     public class Relationship
     {

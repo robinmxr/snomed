@@ -2,7 +2,7 @@ namespace SnomedSearch.Core.Entities
 {
     /// <summary>
     /// Represents SNOMED CT Semantic Tag information.
-    /// Maps to 'snomed.semantic_tag' table.
+    /// Maps to 'semantic_tag' table.
     /// </summary>
     public class SemanticTagInfo
     {

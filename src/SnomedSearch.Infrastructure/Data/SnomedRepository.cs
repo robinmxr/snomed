@@ -76,9 +76,9 @@ namespace SnomedSearch.Infrastructure.Data
                         ELSE 2
                     END AS match_rank,
                     LENGTH(d.term) AS term_length
-                FROM snomed.description d
-                JOIN snomed.concept c ON d.concept_id = c.concept_id
-                LEFT JOIN snomed.semantic_tag st ON d.concept_id = st.concept_id
+                FROM description d
+                JOIN concept c ON d.concept_id = c.concept_id
+                LEFT JOIN semantic_tag st ON d.concept_id = st.concept_id
                 WHERE d.active = true
                   AND c.active = true
                   AND ({wordConditions})
@@ -98,7 +98,7 @@ namespace SnomedSearch.Infrastructure.Data
             SELECT
                 rc.concept_id AS ConceptId,
                 COALESCE(
-                    (SELECT term FROM snomed.description 
+                    (SELECT term FROM description 
                      WHERE concept_id = rc.concept_id 
                        AND active = true 
                        AND type_id = 900000000000013009 
@@ -107,7 +107,7 @@ namespace SnomedSearch.Infrastructure.Data
                 ) AS PreferredTerm,
                 rc.semantic_tag AS SemanticTag,
                 (SELECT COUNT(*) AS ""Value""
-                 FROM snomed.relationship r
+                 FROM relationship r
                  WHERE r.destination_id = rc.concept_id
                    AND r.type_id = 116680003
                    AND r.active = true) AS ChildrenCount
@@ -135,9 +135,9 @@ namespace SnomedSearch.Infrastructure.Data
                     st.fully_specified_name AS fsn,
                     similarity(d.term, @query) AS sim_score,
                     LENGTH(d.term) AS term_length
-                FROM snomed.description d
-                JOIN snomed.concept c ON d.concept_id = c.concept_id
-                LEFT JOIN snomed.semantic_tag st ON d.concept_id = st.concept_id
+                FROM description d
+                JOIN concept c ON d.concept_id = c.concept_id
+                LEFT JOIN semantic_tag st ON d.concept_id = st.concept_id
                 WHERE d.active = true
                   AND c.active = true
                   AND st.semantic_tag = ANY(@semanticTags)
@@ -158,7 +158,7 @@ namespace SnomedSearch.Infrastructure.Data
             SELECT
                 rc.concept_id AS ConceptId,
                 COALESCE(
-                    (SELECT term FROM snomed.description 
+                    (SELECT term FROM description 
                      WHERE concept_id = rc.concept_id 
                        AND active = true 
                        AND type_id = 900000000000013009 
@@ -167,7 +167,7 @@ namespace SnomedSearch.Infrastructure.Data
                 ) AS PreferredTerm,
                 rc.semantic_tag AS SemanticTag,
                 (SELECT COUNT(*) AS ""Value""
-                 FROM snomed.relationship r
+                 FROM relationship r
                  WHERE r.destination_id = rc.concept_id
                    AND r.type_id = 116680003
                    AND r.active = true) AS ChildrenCount
@@ -360,9 +360,9 @@ namespace SnomedSearch.Infrastructure.Data
                     d.concept_id,
                     d.term AS matched_term,
                     st.semantic_tag
-                FROM snomed.description d
-                JOIN snomed.concept c ON d.concept_id = c.concept_id
-                LEFT JOIN snomed.semantic_tag st ON d.concept_id = st.concept_id
+                FROM description d
+                JOIN concept c ON d.concept_id = c.concept_id
+                LEFT JOIN semantic_tag st ON d.concept_id = st.concept_id
                 WHERE d.active = true
                   AND c.active = true
                   AND ({wordConditions})
@@ -378,7 +378,7 @@ namespace SnomedSearch.Infrastructure.Data
             SELECT
                 concept_id AS ConceptId,
                 COALESCE(
-                    (SELECT term FROM snomed.description 
+                    (SELECT term FROM description 
                      WHERE concept_id = ranked_concepts.concept_id 
                        AND active = true 
                        AND type_id = 900000000000013009 
@@ -393,9 +393,9 @@ namespace SnomedSearch.Infrastructure.Data
             string countSql = $@"
             SELECT COUNT(*) AS ""Value"" FROM (
                 SELECT DISTINCT d.concept_id 
-                FROM snomed.description d
-                JOIN snomed.concept c ON d.concept_id = c.concept_id
-                LEFT JOIN snomed.semantic_tag st ON d.concept_id = st.concept_id
+                FROM description d
+                JOIN concept c ON d.concept_id = c.concept_id
+                LEFT JOIN semantic_tag st ON d.concept_id = st.concept_id
                 WHERE d.active = true
                   AND c.active = true
                   AND ({wordConditions})
@@ -425,9 +425,9 @@ namespace SnomedSearch.Infrastructure.Data
                         d.term AS matched_term,
                         st.semantic_tag,
                         similarity(d.term, @query) AS sim_score
-                    FROM snomed.description d
-                    JOIN snomed.concept c ON d.concept_id = c.concept_id
-                    LEFT JOIN snomed.semantic_tag st ON d.concept_id = st.concept_id
+                    FROM description d
+                    JOIN concept c ON d.concept_id = c.concept_id
+                    LEFT JOIN semantic_tag st ON d.concept_id = st.concept_id
                     WHERE d.active = true
                       AND c.active = true
                       AND st.semantic_tag = ANY(@semanticTags)
@@ -445,7 +445,7 @@ namespace SnomedSearch.Infrastructure.Data
                 SELECT
                     concept_id AS ConceptId,
                     COALESCE(
-                        (SELECT term FROM snomed.description 
+                        (SELECT term FROM description 
                          WHERE concept_id = ranked_concepts.concept_id 
                            AND active = true 
                            AND type_id = 900000000000013009 
@@ -460,9 +460,9 @@ namespace SnomedSearch.Infrastructure.Data
                 string fuzzyCountSql = @"
                 SELECT COUNT(*) AS ""Value"" FROM (
                     SELECT DISTINCT d.concept_id
-                    FROM snomed.description d
-                    JOIN snomed.concept c ON d.concept_id = c.concept_id
-                    LEFT JOIN snomed.semantic_tag st ON d.concept_id = st.concept_id
+                    FROM description d
+                    JOIN concept c ON d.concept_id = c.concept_id
+                    LEFT JOIN semantic_tag st ON d.concept_id = st.concept_id
                     WHERE d.active = true
                       AND c.active = true
                       AND st.semantic_tag = ANY(@semanticTags)
