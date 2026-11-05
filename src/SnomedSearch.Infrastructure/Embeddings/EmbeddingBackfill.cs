@@ -92,7 +92,7 @@ namespace SnomedSearch.Infrastructure.Embeddings
                 progress?.Invoke(new BackfillProgress(done, remaining - done, done / Math.Max(sw.Elapsed.TotalSeconds, 0.001)));
             }
 
-            // Building the HNSW index after the bulk load is much faster than maintaining it row by row.
+            // The HNSW index is built once after the bulk load instead of being updated for every inserted row.
             var indexName = VectorSql.IndexName(key);
             var indexExists = await ScalarAsync<bool>(conn,
                 "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = @n AND relkind = 'i')", ct, ("n", indexName));

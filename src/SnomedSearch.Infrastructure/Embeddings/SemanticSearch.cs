@@ -12,7 +12,7 @@ namespace SnomedSearch.Infrastructure.Embeddings
         /// <summary>Nearest descriptions fetched from the HNSW index before collapsing to one row per concept.</summary>
         public int Candidates { get; set; } = 200;
 
-        /// <summary>hnsw.ef_search: larger is more accurate and slower.</summary>
+        /// <summary>hnsw.ef_search: larger values examine more candidates per query (higher recall, more work).</summary>
         public int EfSearch { get; set; } = 100;
 
         /// <summary>Query embeddings kept in memory. When full the cache is cleared (simple and bounded).</summary>

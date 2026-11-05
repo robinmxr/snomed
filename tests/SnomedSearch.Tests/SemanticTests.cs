@@ -39,7 +39,10 @@ public class SemanticTests(DatabaseFixture db)
 {
     private static EmbeddingOptions Options(string key, string docPrefix = "") => new()
     {
-        BaseUrl = "http://unused", Model = "fake", ModelKey = key, DocumentPrefix = docPrefix,
+        BaseUrl = "http://unused",
+        Model = "fake",
+        ModelKey = key,
+        DocumentPrefix = docPrefix,
         Tags = ["finding", "disorder"]
     };
 

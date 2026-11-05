@@ -20,7 +20,7 @@ BEGIN
     ANALYZE isa;
 
     TRUNCATE concept_ancestor;
-    -- Indexes are dropped during the build and recreated after, which is much faster.
+    -- Indexes are dropped during the build and recreated once at the end, instead of being updated per insert.
     ALTER TABLE concept_ancestor DROP CONSTRAINT IF EXISTS concept_ancestor_pkey;
     DROP INDEX IF EXISTS ix_concept_ancestor_descendant;
 

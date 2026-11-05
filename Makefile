@@ -5,7 +5,8 @@
 #   make load PATH_TO_RELEASE=/path/to/SnomedCT_release   # load YOUR download and build the search table
 #   make test                # run the test suite (needs only Docker)
 SHELL := /bin/bash
-export PSQL ?= docker compose exec -T db psql -U $$SNOMED_DB_USER -d $$SNOMED_DB_NAME
+# db/*.sh run psql inside the compose service, so no local psql install is needed.
+export SNOMED_USE_DOCKER ?= 1
 
 .PHONY: up stop migrate load test build
 
