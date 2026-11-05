@@ -41,3 +41,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+// Lets the test project start the app with WebApplicationFactory.
+public partial class Program { }

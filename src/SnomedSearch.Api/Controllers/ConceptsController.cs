@@ -51,7 +51,6 @@ namespace SnomedSearch.Api.Controllers
 
     [ApiController]
     [Route("api/concepts")]
-    [Produces("application/json")]
     public class ConceptsController : ControllerBase
     {
         private const int MaxOffset = 10_000;

@@ -1,0 +1,7 @@
+[
+  { "query": "nibble pain",   "tags": ["finding"],  "expected": [9200001, 9200002, 9200003] },
+  { "query": "pain nibble",   "tags": ["finding"],  "expected": [9200001, 9200002, 9200003] },
+  { "query": "quillon",       "tags": ["disorder"], "expected": [9100001, 9100002, 9100003] },
+  { "query": "brenwick",      "tags": ["disorder"], "expected": [9100004, 9100005] },
+  { "query": "left",          "tags": null,         "expected": [9400001, 9100005, 9200003] }
+]

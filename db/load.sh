@@ -25,16 +25,7 @@ copy_in() { # table  file
 }
 
 echo "load: staging tables"
-run_sql <<'SQL'
-SET search_path TO :"schema", public;
-DROP TABLE IF EXISTS stg_concept, stg_description, stg_relationship, stg_text_definition;
-CREATE UNLOGGED TABLE stg_concept (id text, effective text, active text, module text, def_status text);
-CREATE UNLOGGED TABLE stg_description (id text, effective text, active text, module text, concept text,
-                                       lang text, type text, term text, case_sig text);
-CREATE UNLOGGED TABLE stg_relationship (id text, effective text, active text, module text, source text,
-                                        destination text, grp text, type text, char_type text, modifier text);
-CREATE UNLOGGED TABLE stg_text_definition (LIKE stg_description);
-SQL
+run_sql < load/01_staging.sql
 
 # Stage with the schema on the search path by prefixing table names.
 echo "load: $(basename "$CONCEPT")";      copy_in "$SCHEMA.stg_concept" "$CONCEPT"
@@ -44,25 +35,7 @@ if [ -n "$TEXTDEF" ]; then echo "load: $(basename "$TEXTDEF")"; copy_in "$SCHEMA
 else echo "load: no text definition file found, skipping"; fi
 
 echo "load: casting into typed tables"
-run_sql <<'SQL'
-SET search_path TO :"schema", public;
-BEGIN;
-TRUNCATE concept, description, relationship, text_definition;
-INSERT INTO concept
-  SELECT id::bigint, to_date(effective,'YYYYMMDD'), active = '1', module::bigint, def_status::bigint FROM stg_concept;
-INSERT INTO description
-  SELECT id::bigint, to_date(effective,'YYYYMMDD'), active = '1', module::bigint, concept::bigint,
-         lang, type::bigint, term, case_sig::bigint FROM stg_description;
-INSERT INTO relationship
-  SELECT id::bigint, to_date(effective,'YYYYMMDD'), active = '1', module::bigint, source::bigint,
-         destination::bigint, grp::int, type::bigint, char_type::bigint, modifier::bigint FROM stg_relationship;
-INSERT INTO text_definition
-  SELECT id::bigint, to_date(effective,'YYYYMMDD'), active = '1', module::bigint, concept::bigint,
-         lang, type::bigint, term, case_sig::bigint FROM stg_text_definition;
-COMMIT;
-DROP TABLE stg_concept, stg_description, stg_relationship, stg_text_definition;
-ANALYZE concept; ANALYZE description; ANALYZE relationship; ANALYZE text_definition;
-SQL
+run_sql < load/02_cast.sql
 
 echo "load: building semantic tags and search table"
 run_sql < sql/004_populate.sql
