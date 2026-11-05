@@ -16,7 +16,8 @@ namespace SnomedSearch.Core.Models
         IReadOnlyList<string>? SemanticTags,
         int Limit,
         int Offset,
-        string? Cursor);
+        string? Cursor,
+        long? Within = null);
 
     public sealed class ConceptSearchResponse
     {
@@ -32,6 +33,19 @@ namespace SnomedSearch.Core.Models
 
         /// <summary>True when no word matched and typo-tolerant matching produced the results.</summary>
         public bool Fuzzy { get; set; }
+    }
+
+    /// <summary>All IS-A descendants of a concept, keyset-paged by concept id.</summary>
+    public sealed class DescendantsResponse
+    {
+        public long ConceptId { get; set; }
+        public List<Entities.ConceptSummary> Items { get; set; } = new();
+
+        /// <summary>Total descendants (after the tag filter). Null when a cursor is used.</summary>
+        public int? TotalCount { get; set; }
+
+        /// <summary>Pass as <c>after</c> to get the next page. Null when there are no more.</summary>
+        public long? NextAfter { get; set; }
     }
 
     /// <summary>Thrown for input the caller can fix, such as a malformed cursor. Mapped to HTTP 400.</summary>

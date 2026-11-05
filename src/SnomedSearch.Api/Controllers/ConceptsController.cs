@@ -19,6 +19,11 @@ namespace SnomedSearch.Api.Controllers
         [FromQuery(Name = "tags")]
         [MaxLength(20)]
         public string[]? Tags { get; set; }
+
+        /// <summary>Restrict to this concept and its IS-A descendants, e.g. a subtree such as all heart disorders.</summary>
+        [FromQuery(Name = "within")]
+        [Range(1, long.MaxValue)]
+        public long? Within { get; set; }
     }
 
     public class SearchRequestParameters : SearchParameters
@@ -88,7 +93,7 @@ namespace SnomedSearch.Api.Controllers
             try
             {
                 var result = await _repository.SearchAsync(
-                    new ConceptSearchQuery(p.Q, p.Mode, p.Tags, p.Limit, offset, p.Cursor), ct);
+                    new ConceptSearchQuery(p.Q, p.Mode, p.Tags, p.Limit, offset, p.Cursor, p.Within), ct);
                 return Ok(result);
             }
             catch (InvalidSearchRequestException e)
@@ -109,7 +114,7 @@ namespace SnomedSearch.Api.Controllers
         {
             var bad = ValidateTags(p.Tags);
             if (bad is not null) return bad;
-            return Ok(await _repository.SuggestAsync(p.Q, p.Tags, p.Limit, ct));
+            return Ok(await _repository.SuggestAsync(p.Q, p.Tags, p.Limit, ct, p.Within));
         }
 
         /// <summary>Concept details: names, definition, parents and child count.</summary>
@@ -139,6 +144,34 @@ namespace SnomedSearch.Api.Controllers
         public async Task<IActionResult> GetParents(long conceptId, CancellationToken ct)
         {
             var result = await _repository.GetParentsAsync(conceptId, ct);
+            return result is null ? NotFoundProblem(conceptId) : Ok(result);
+        }
+
+        /// <summary>All IS-A descendants (transitive), ordered by concept id. Use for value sets.</summary>
+        /// <remarks>Does not include the concept itself. Page with <c>after</c> set to the previous response's nextAfter.</remarks>
+        [HttpGet("{conceptId:long}/descendants")]
+        [ProducesResponseType(typeof(DescendantsResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetDescendants(
+            long conceptId,
+            [FromQuery, Range(1, 1000)] int limit = 100,
+            [FromQuery, Range(1, long.MaxValue)] long? after = null,
+            [FromQuery, MaxLength(20)] string[]? tags = null,
+            CancellationToken ct = default)
+        {
+            var bad = ValidateTags(tags);
+            if (bad is not null) return bad;
+            var result = await _repository.GetDescendantsAsync(conceptId, tags, limit, after, ct);
+            return result is null ? NotFoundProblem(conceptId) : Ok(result);
+        }
+
+        /// <summary>All IS-A ancestors (transitive), nearest first, with their shortest distance.</summary>
+        [HttpGet("{conceptId:long}/ancestors")]
+        [ProducesResponseType(typeof(List<ConceptSummary>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetAncestors(long conceptId, CancellationToken ct)
+        {
+            var result = await _repository.GetAncestorsAsync(conceptId, ct);
             return result is null ? NotFoundProblem(conceptId) : Ok(result);
         }
 

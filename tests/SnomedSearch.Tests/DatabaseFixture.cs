@@ -115,9 +115,10 @@ public sealed class DatabaseFixture : IAsyncLifetime
         foreach (var f in new[] { "load/02_cast.sql", "sql/004_populate.sql" })
             await RunAsync(conn, ReadSql(f));
 
-        // Later migrations (1xx), as db/migrate.sh runs them.
-        foreach (var f in Directory.GetFiles(Path.Combine(BaseDir, "db", "sql"), "1*.sql").OrderBy(x => x))
-            await RunAsync(conn, ReadSql(Path.Combine("sql", Path.GetFileName(f))));
+        // Later migrations (1xx) as db/migrate.sh runs them, then post-load derivations (2xx) as db/load.sh does.
+        foreach (var range in new[] { "1*.sql", "2*.sql" })
+            foreach (var f in Directory.GetFiles(Path.Combine(BaseDir, "db", "sql"), range).OrderBy(x => x))
+                await RunAsync(conn, ReadSql(Path.Combine("sql", Path.GetFileName(f))));
     }
 
     private static string Find(string dir, string pattern) =>

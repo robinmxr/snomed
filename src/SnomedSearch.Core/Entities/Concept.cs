@@ -39,6 +39,9 @@ namespace SnomedSearch.Core.Entities
         /// <summary>The description that matched the query. Null for hierarchy results.</summary>
         public string? MatchedTerm { get; set; }
 
+        /// <summary>Shortest IS-A distance, for descendant and ancestor lists. Null elsewhere.</summary>
+        public int? Depth { get; set; }
+
         public bool HasChildren => ChildrenCount > 0;
     }
 }

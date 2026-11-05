@@ -57,6 +57,15 @@ plan "Exact and prefix lookup (btree on term_lower)" "SELECT concept_id, term FR
 
 plan "Children of a concept (partial index on relationship)" "SELECT r.source_id FROM relationship r WHERE r.destination_id = (SELECT concept_id FROM search_term WHERE term_lower = 'headache' LIMIT 1) AND r.type_id = 116680003 AND r.active"
 
+# Closure table (Phase 5). 56265001 is Heart disease in the International release; change it for other editions.
+plan "Descendants page (closure primary key, keyset)" "SELECT a.descendant_id, a.min_depth FROM concept_ancestor a WHERE a.ancestor_id = 56265001 AND a.descendant_id > 0 ORDER BY a.descendant_id LIMIT 101"
+
+plan "Descendant count" "SELECT count(*) FROM concept_ancestor a WHERE a.ancestor_id = 56265001"
+
+plan "Ancestors of a concept (reverse index)" "SELECT a.ancestor_id, a.min_depth FROM concept_ancestor a WHERE a.descendant_id = 22298006 ORDER BY a.min_depth"
+
+plan "Word search restricted to a subtree" "SELECT count(DISTINCT concept_id) FROM search_term WHERE tsv @@ to_tsquery('simple', 'failure:*') AND (search_term.concept_id = 56265001 OR EXISTS (SELECT 1 FROM concept_ancestor ca WHERE ca.ancestor_id = 56265001 AND ca.descendant_id = search_term.concept_id))"
+
 cat <<'NOTES'
 ## Notes
 
@@ -67,4 +76,6 @@ cat <<'NOTES'
 - Word search matches the start of words, so "ache" does not match "headache". This differs from the
   earlier substring (`ILIKE %word%`) behaviour and is a deliberate trade for index use.
 - Planner choices depend on table statistics. Run `ANALYZE` after loading (the loader does).
+- Closure table on this data set: 7,611,410 ancestor pairs, maximum depth 22, built breadth first by
+  `db/sql/201_closure.sql` in 2 min 01 s (single run), 837 MB including both indexes.
 NOTES

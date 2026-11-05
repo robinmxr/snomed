@@ -74,7 +74,7 @@ namespace SnomedSearch.Infrastructure.Embeddings
         public string ModelKey => _embedding.EffectiveModelKey;
 
         public async Task<List<ConceptSummary>> SearchAsync(
-            string query, IReadOnlyList<string>? semanticTags, int limit, CancellationToken ct = default)
+            string query, IReadOnlyList<string>? semanticTags, int limit, CancellationToken ct = default, long? within = null)
         {
             var words = LexicalSearch.Tokenize(query, 32);
             if (words.Count == 0) return new List<ConceptSummary>();
@@ -90,8 +90,8 @@ namespace SnomedSearch.Infrastructure.Embeddings
             if (vector.Length != dimension)
                 throw new InvalidOperationException($"Query embedding has {vector.Length} dimensions, stored vectors have {dimension}.");
 
-            var tags = semanticTags is { Count: > 0 } ? semanticTags.ToArray() : null;
-            var tagClause = tags is null ? "" : "AND e.semantic_tag = ANY(@tags)";
+            var filter = SearchFilter.From(semanticTags, within);
+            var tagClause = filter.Sql("e");
             var keyLiteral = VectorSql.Literal(key);
             var expr = $"e.embedding::vector({dimension})";
 
@@ -125,12 +125,12 @@ namespace SnomedSearch.Infrastructure.Embeddings
                 new("candidates", Math.Max(_options.Candidates, limit)),
                 new("limit", limit),
             };
-            if (tags is not null) ps.Add(new NpgsqlParameter("tags", NpgsqlDbType.Array | NpgsqlDbType.Varchar) { Value = tags });
+            filter.AddParams(ps);
 
             await using var tx = await _db.Database.BeginTransactionAsync(ct);
             var ef = _options.EfSearch.ToString(System.Globalization.CultureInfo.InvariantCulture);
             await _db.Database.ExecuteSqlAsync($"SELECT set_config('hnsw.ef_search', {ef}, true)", ct);
-            // With a tag filter, keep scanning the index until enough rows pass the filter (pgvector 0.8+).
+            // With a tag or subtree filter, keep scanning the index until enough rows pass the filter (pgvector 0.8+).
             await _db.Database.ExecuteSqlAsync($"SELECT set_config('hnsw.iterative_scan', {"relaxed_order"}, true)", ct);
 
             var rows = await _db.Database.SqlQueryRaw<SemanticRow>(sql, ps.ToArray()).ToListAsync(ct);

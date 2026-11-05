@@ -9,7 +9,15 @@ namespace SnomedSearch.Core.Interfaces
         Task<ConceptSearchResponse> SearchAsync(ConceptSearchQuery query, CancellationToken ct = default);
 
         /// <summary>Prefix suggestions tuned for typing: no total count, no typo fallback, small limits.</summary>
-        Task<List<ConceptSummary>> SuggestAsync(string prefix, IReadOnlyList<string>? semanticTags, int limit, CancellationToken ct = default);
+        Task<List<ConceptSummary>> SuggestAsync(string prefix, IReadOnlyList<string>? semanticTags, int limit, CancellationToken ct = default, long? within = null);
+
+        /// <summary>All IS-A descendants (not the concept itself), ordered by concept id.</summary>
+        /// <returns>Null when the concept does not exist or is inactive.</returns>
+        Task<DescendantsResponse?> GetDescendantsAsync(long conceptId, IReadOnlyList<string>? semanticTags, int limit, long? after, CancellationToken ct = default);
+
+        /// <summary>All IS-A ancestors, nearest first.</summary>
+        /// <returns>Null when the concept does not exist or is inactive.</returns>
+        Task<List<ConceptSummary>?> GetAncestorsAsync(long conceptId, CancellationToken ct = default);
 
         /// <returns>Null when the concept does not exist or is inactive.</returns>
         Task<Concept?> GetConceptDetailsAsync(long conceptId, CancellationToken ct = default);

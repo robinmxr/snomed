@@ -32,7 +32,7 @@ namespace SnomedSearch.Infrastructure.Data
             if (query.Mode == SearchMode.Lexical)
             {
                 var lexical = await _search.SearchAsync(
-                    new LexicalSearchRequest(query.Query, query.SemanticTags, query.Limit, query.Offset, query.Cursor), ct);
+                    new LexicalSearchRequest(query.Query, query.SemanticTags, query.Limit, query.Offset, query.Cursor, query.Within), ct);
                 return new ConceptSearchResponse
                 {
                     Items = lexical.Items,
@@ -56,14 +56,14 @@ namespace SnomedSearch.Infrastructure.Data
 
             if (query.Mode == SearchMode.Semantic)
             {
-                var items = await _semantic.SearchAsync(query.Query, query.SemanticTags, query.Limit, ct);
+                var items = await _semantic.SearchAsync(query.Query, query.SemanticTags, query.Limit, ct, query.Within);
                 return new ConceptSearchResponse { Items = items, Mode = "semantic" };
             }
 
             // Hybrid: fuse the two ranked lists with reciprocal rank fusion.
             var lex = await _search.SearchAsync(
-                new LexicalSearchRequest(query.Query, query.SemanticTags, _hybrid.LexicalCandidates, 0), ct);
-            var sem = await _semantic.SearchAsync(query.Query, query.SemanticTags, _hybrid.SemanticCandidates, ct);
+                new LexicalSearchRequest(query.Query, query.SemanticTags, _hybrid.LexicalCandidates, 0, null, query.Within), ct);
+            var sem = await _semantic.SearchAsync(query.Query, query.SemanticTags, _hybrid.SemanticCandidates, ct, query.Within);
             return new ConceptSearchResponse
             {
                 Items = HybridFusion.Fuse(lex.Items, sem, _hybrid.RrfK, query.Limit),
@@ -73,8 +73,83 @@ namespace SnomedSearch.Infrastructure.Data
         }
 
         public Task<List<ConceptSummary>> SuggestAsync(
-            string prefix, IReadOnlyList<string>? semanticTags, int limit, CancellationToken ct = default) =>
-            _search.SuggestAsync(prefix, semanticTags, limit, ct);
+            string prefix, IReadOnlyList<string>? semanticTags, int limit, CancellationToken ct = default, long? within = null) =>
+            _search.SuggestAsync(prefix, semanticTags, limit, ct, within);
+
+        // Columns shared by descendant and ancestor lists. The preferred-term rule matches the search table.
+        private const string HierarchyColumns = @"
+                COALESCE(pt.term, x.id::text) AS ""PreferredTerm"",
+                COALESCE(st.semantic_tag, '') AS ""SemanticTag"",
+                (SELECT count(*)::int FROM relationship r
+                  WHERE r.destination_id = x.id AND r.type_id = 116680003 AND r.active) AS ""ChildrenCount"",
+                NULL::text AS ""MatchedTerm""";
+
+        private const string HierarchyJoins = @"
+                LEFT JOIN semantic_tag st ON st.concept_id = x.id
+                LEFT JOIN LATERAL (
+                    SELECT d.term FROM description d
+                    WHERE d.concept_id = x.id AND d.active AND d.type_id = 900000000000013009
+                    ORDER BY length(d.term), d.term LIMIT 1) pt ON true";
+
+        public async Task<DescendantsResponse?> GetDescendantsAsync(
+            long conceptId, IReadOnlyList<string>? semanticTags, int limit, long? after, CancellationToken ct = default)
+        {
+            if (!await ActiveConceptExists(conceptId, ct)) return null;
+
+            var tags = semanticTags is { Count: > 0 } ? semanticTags.ToArray() : null;
+            var tagJoin = tags is null ? "" : "JOIN semantic_tag tf ON tf.concept_id = a.descendant_id AND tf.semantic_tag = ANY(@tags)";
+
+            // Keyset on descendant_id walks the primary key (ancestor_id, descendant_id) in order.
+            var sql = $@"
+                WITH x AS (
+                    SELECT a.descendant_id AS id, a.min_depth
+                    FROM concept_ancestor a
+                    {tagJoin}
+                    WHERE a.ancestor_id = @id AND a.descendant_id > @after
+                    ORDER BY a.descendant_id
+                    LIMIT @take
+                )
+                SELECT x.id AS ""ConceptId"", {HierarchyColumns}, x.min_depth AS ""Depth""
+                FROM x {HierarchyJoins}
+                ORDER BY x.id";
+
+            Npgsql.NpgsqlParameter[] Params(int take) => tags is null
+                ? new Npgsql.NpgsqlParameter[] { new("id", conceptId), new("after", after ?? 0L), new("take", take) }
+                : new Npgsql.NpgsqlParameter[]
+                  {
+                      new("id", conceptId), new("after", after ?? 0L), new("take", take),
+                      new("tags", NpgsqlTypes.NpgsqlDbType.Array | NpgsqlTypes.NpgsqlDbType.Varchar) { Value = tags }
+                  };
+
+            var rows = await _db.Database.SqlQueryRaw<ConceptSummary>(sql, Params(limit + 1)).ToListAsync(ct);
+            int? total = null;
+            if (after is null)
+            {
+                total = (int)await _db.Database.SqlQueryRaw<long>($@"
+                    SELECT count(*) AS ""Value"" FROM concept_ancestor a {tagJoin} WHERE a.ancestor_id = @id",
+                    Params(0)).FirstAsync(ct);
+            }
+
+            var page = rows.Take(limit).ToList();
+            return new DescendantsResponse
+            {
+                ConceptId = conceptId,
+                Items = page,
+                TotalCount = total,
+                NextAfter = rows.Count > limit ? page[^1].ConceptId : null
+            };
+        }
+
+        public async Task<List<ConceptSummary>?> GetAncestorsAsync(long conceptId, CancellationToken ct = default)
+        {
+            if (!await ActiveConceptExists(conceptId, ct)) return null;
+            var sql = $@"
+                WITH x AS (SELECT a.ancestor_id AS id, a.min_depth FROM concept_ancestor a WHERE a.descendant_id = @id)
+                SELECT x.id AS ""ConceptId"", {HierarchyColumns}, x.min_depth AS ""Depth""
+                FROM x {HierarchyJoins}
+                ORDER BY x.min_depth, x.id";
+            return await _db.Database.SqlQueryRaw<ConceptSummary>(sql, new Npgsql.NpgsqlParameter("id", conceptId)).ToListAsync(ct);
+        }
 
         public async Task<Concept?> GetConceptDetailsAsync(long conceptId, CancellationToken ct = default)
         {
