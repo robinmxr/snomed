@@ -1,0 +1,37 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore src/SnomedSearch.slnx
+
+      - name: Lint (C# whitespace)
+        run: dotnet format whitespace src/SnomedSearch.slnx --verify-no-changes --no-restore
+
+      - name: Lint (shell scripts)
+        run: shellcheck --severity=error db/*.sh
+
+      - name: Build
+        run: dotnet build src/SnomedSearch.slnx --no-restore -c Release
+
+      # Tests start their own pgvector Postgres with Testcontainers (Docker is available on the runner).
+      # They load only the synthetic fixture in tests/fixtures, never SNOMED CT data, and need no secrets.
+      - name: Test
+        run: dotnet test src/SnomedSearch.slnx --no-build -c Release --logger "console;verbosity=normal"

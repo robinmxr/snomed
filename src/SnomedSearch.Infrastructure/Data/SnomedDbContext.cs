@@ -18,8 +18,6 @@ namespace SnomedSearch.Infrastructure.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.HasDefaultSchema("snomed");
-
             // Mapping for Concept
             modelBuilder.Entity<Concept>(entity =>
             {

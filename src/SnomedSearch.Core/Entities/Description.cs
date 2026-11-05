@@ -4,7 +4,7 @@ namespace SnomedSearch.Core.Entities
 {
     /// <summary>
     /// Represents a SNOMED CT Description.
-    /// Maps to 'snomed.description' table.
+    /// Maps to 'description' table.
     /// </summary>
     public class Description
     {
@@ -13,9 +13,9 @@ namespace SnomedSearch.Core.Entities
         public bool Active { get; set; }
         public long ModuleId { get; set; }
         public long ConceptId { get; set; }
-        public string LanguageCode { get; set; }
+        public string LanguageCode { get; set; } = "";
         public long TypeId { get; set; }
-        public string Term { get; set; }
+        public string Term { get; set; } = "";
         public long CaseSignificanceId { get; set; }
     }
 }

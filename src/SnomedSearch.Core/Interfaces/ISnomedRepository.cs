@@ -1,35 +1,44 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using SnomedSearch.Core.Entities;
+using SnomedSearch.Core.Models;
 
 namespace SnomedSearch.Core.Interfaces
 {
-    public interface ISnomedRepository : IDisposable
+    public interface ISnomedRepository
     {
-        Task<List<ConceptSummary>> SearchChiefComplaintsAsync(
-            string query, 
-            int limit = 20, 
-            List<string> semanticTags = null);
+        /// <summary>Search concepts. Semantic and hybrid modes throw NotSupportedException when no embedding model is configured.</summary>
+        Task<ConceptSearchResponse> SearchAsync(ConceptSearchQuery query, CancellationToken ct = default);
 
-        Task<SnomedSearch.Core.Common.PagedResult<ChiefComplaint>> SearchChiefComplaintsPagedAsync(
-            string searchTerm, 
-            int page, 
-            int pageSize, 
-            System.Threading.CancellationToken cancellationToken = default);
+        /// <summary>Prefix suggestions tuned for typing: no total count, no typo fallback, small limits.</summary>
+        Task<List<ConceptSummary>> SuggestAsync(string prefix, IReadOnlyList<string>? semanticTags, int limit, CancellationToken ct = default, long? within = null);
 
-        Task<Concept> GetConceptDetailsAsync(long conceptId);
-        Task<HierarchyResponse> GetChildrenAsync(long conceptId, int limit = 50);
-        Task<HierarchyResponse> GetParentsAsync(long conceptId);
-        Task<List<string>> GetSynonymsAsync(long conceptId);
-        Task<Dictionary<string, int>> GetSemanticTagStatsAsync();
+        /// <summary>All IS-A descendants (not the concept itself), ordered by concept id.</summary>
+        /// <returns>Null when the concept does not exist or is inactive.</returns>
+        Task<DescendantsResponse?> GetDescendantsAsync(long conceptId, IReadOnlyList<string>? semanticTags, int limit, long? after, CancellationToken ct = default);
+
+        /// <summary>All IS-A ancestors, nearest first.</summary>
+        /// <returns>Null when the concept does not exist or is inactive.</returns>
+        Task<List<ConceptSummary>?> GetAncestorsAsync(long conceptId, CancellationToken ct = default);
+
+        /// <returns>Null when the concept does not exist or is inactive.</returns>
+        Task<Concept?> GetConceptDetailsAsync(long conceptId, CancellationToken ct = default);
+
+        /// <returns>Null when the concept does not exist or is inactive.</returns>
+        Task<HierarchyResponse?> GetChildrenAsync(long conceptId, int limit = 50, CancellationToken ct = default);
+
+        /// <returns>Null when the concept does not exist or is inactive.</returns>
+        Task<HierarchyResponse?> GetParentsAsync(long conceptId, CancellationToken ct = default);
+
+        /// <returns>Null when the concept does not exist or is inactive.</returns>
+        Task<List<string>?> GetSynonymsAsync(long conceptId, CancellationToken ct = default);
+
+        Task<Dictionary<string, int>> GetSemanticTagStatsAsync(CancellationToken ct = default);
     }
 
     public class HierarchyResponse
     {
         public long ConceptId { get; set; }
-        public string PreferredTerm { get; set; }
-        public List<ConceptSummary> Items { get; set; } = new List<ConceptSummary>();
+        public string PreferredTerm { get; set; } = "";
+        public List<ConceptSummary> Items { get; set; } = new();
         public int Total => Items.Count;
     }
 }

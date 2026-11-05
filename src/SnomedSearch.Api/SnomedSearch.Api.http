@@ -1,6 +1,24 @@
-@SnomedSearch.Api_HostAddress = http://localhost:5091
+@host = http://localhost:5091
 
-GET {{SnomedSearch.Api_HostAddress}}/weatherforecast/
+### Search (lexical). Add &tags=finding&tags=disorder to filter, &limit=, &page= or &cursor=
+GET {{host}}/api/concepts/search?q=chest pain&limit=5
 Accept: application/json
 
+### Typo tolerant: runs only when no word matches
+GET {{host}}/api/concepts/search?q=chest pian
+
+### Suggest while typing
+GET {{host}}/api/concepts/suggest?q=chest pa&limit=8
+
+### Concept details (replace the id with one from your data)
+GET {{host}}/api/concepts/{{conceptId}}
+
+### Children, parents, synonyms
+GET {{host}}/api/concepts/{{conceptId}}/children?limit=50
 ###
+GET {{host}}/api/concepts/{{conceptId}}/parents
+###
+GET {{host}}/api/concepts/{{conceptId}}/synonyms
+
+### Concepts per searchable semantic tag
+GET {{host}}/api/concepts/semantic-tags

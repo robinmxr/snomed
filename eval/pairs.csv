@@ -1,0 +1,55 @@
+phrase,expected_concept_id
+belly pain,21522001
+tummy ache,21522001
+heart attack,22298006
+high blood pressure,38341003
+stroke,230690007
+sugar diabetes,73211009
+runny nose,64531003
+throwing up,422400008
+feeling sick to my stomach,422587007
+can't sleep,193462001
+short of breath,267036007
+feeling dizzy,404640003
+itchy skin,418363000
+pink eye,9826008
+sore throat,162397003
+fainted,271594007
+heartburn,16331000
+the runs,62315008
+can't poop,14760008
+nosebleed,249366005
+head cold,82272006
+flu,6142004
+kidney stones,95570007
+chickenpox,38907003
+low blood sugar,302866003
+pins and needles,91019004
+ringing in my ears,60862001
+bad back,161891005
+blurry vision,111516008
+hair falling out,56317004
+coughing up blood,66857006
+blood in my pee,34436003
+wetting the bed at night,8009008
+heart racing,80313002
+sore joints,57676002
+stomach bug,25374005
+hives,126485001
+shingles,4740000
+lazy eye,387742006
+cold sore,1475003
+tired all the time,84229001
+running a temperature,386661006
+splitting headache,25064002
+acid reflux,235595009
+broken arm,23406007
+swollen ankles,267039000
+water on the knee,202381003
+ear infection,65363002
+my ear hurts,301354004
+my tooth hurts,27355003
+feeling anxious,48694002
+anaemia,271737000
+urine infection,68566005
+pain in my chest,29857009
